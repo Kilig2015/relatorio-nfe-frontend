@@ -24,7 +24,6 @@ export default function UploadRelatorio() {
     try {
       setCarregando(true);
       setErro(null);
-
       const res = await fetch("https://relatorio-nfe-backend.onrender.com/gerar-relatorio", {
         method: "POST",
         body: formData,
@@ -33,11 +32,7 @@ export default function UploadRelatorio() {
           Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         },
       });
-
-      if (!res.ok) {
-        throw new Error("Erro ao gerar o relatório. Código: " + res.status);
-      }
-
+      if (!res.ok) throw new Error("Erro ao gerar o relatório. Código: " + res.status);
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -60,15 +55,11 @@ export default function UploadRelatorio() {
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: "auto", padding: 20 }}>
+    <div>
       <h1>Relatório de NFe</h1>
       <input type="file" multiple onChange={handleUpload} accept=".xml" />
       <label>
-        <input
-          type="checkbox"
-          checked={modoLinha}
-          onChange={(e) => setModoLinha(e.target.checked)}
-        />
+        <input type="checkbox" checked={modoLinha} onChange={(e) => setModoLinha(e.target.checked)} />
         Linha por item/refNFe
       </label>
       <button onClick={handleSubmit} disabled={carregando}>

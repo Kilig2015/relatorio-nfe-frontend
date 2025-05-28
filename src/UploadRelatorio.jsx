@@ -32,6 +32,9 @@ export default function UploadRelatorio() {
         method: "POST",
         body: formData,
         mode: "cors",
+        headers: {
+          Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
       });
 
       if (!res.ok) {

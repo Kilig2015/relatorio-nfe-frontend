@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 
 export default function UploadRelatorio() {
@@ -7,48 +6,36 @@ export default function UploadRelatorio() {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(null);
 
-  const handleUpload = (e) => {
-    setXmls([...e.target.files]);
-  };
+  const handleUpload = (e) => setXmls([...e.target.files]);
 
   const handleSubmit = async () => {
-    if (xmls.length === 0) {
-      alert("Por favor, selecione arquivos XML antes de gerar o relatório.");
-      return;
-    }
+    if (xmls.length === 0) return alert("Selecione arquivos XML.");
 
     const formData = new FormData();
-    xmls.forEach((file) => formData.append("xmls", file));
+    xmls.forEach(file => formData.append("xmls", file));
     formData.append("modo_linha_individual", modoLinha);
 
     try {
       setCarregando(true);
       setErro(null);
-      const res = await fetch("https://relatorio-nfe-backend.onrender.com/gerar-relatorio", {
+      const res = await fetch("http://localhost:10000/gerar-relatorio", {
         method: "POST",
         body: formData,
-        mode: "cors",
-        headers: {
-          Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        },
       });
-      if (!res.ok) throw new Error("Erro ao gerar o relatório. Código: " + res.status);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText);
+      }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = "relatorio.xlsx";
-      document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Erro ao gerar relatório:", error);
-      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
-        setErro("Erro de rede: não foi possível acessar o backend. Verifique a conexão ou se o backend está online.");
-      } else {
-        setErro("Erro ao gerar ou baixar o relatório: " + error.message);
-      }
+      console.error(error);
+      setErro("Erro ao gerar ou baixar o relatório.");
     } finally {
       setCarregando(false);
     }

@@ -18,7 +18,7 @@ export default function UploadRelatorio() {
     try {
       setCarregando(true);
       setErro(null);
-      const res = await fetch("http://localhost:10000/gerar-relatorio", {
+      const res = await fetch("https://relatorio-nfe-backend.onrender.com/gerar-relatorio", {
         method: "POST",
         body: formData,
       });

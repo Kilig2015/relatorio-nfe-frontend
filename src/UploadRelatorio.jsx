@@ -1,74 +1,112 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 
-export default function UploadRelatorio() {
-  const [xmls, setXmls] = useState([]);
-  const [modoLinha, setModoLinha] = useState(false);
-  const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState(null);
+function UploadRelatorio() {
+  const [arquivos, setArquivos] = useState([]);
+  const [modoIndividual, setModoIndividual] = useState(false);
+  const [filtros, setFiltros] = useState({
+    dataInicio: '',
+    dataFim: '',
+    cfop: '',
+    tipoNF: '',
+    ncm: '',
+    codigoProduto: '',
+  });
 
-  const handleUpload = (e) => {
-    setXmls([...e.target.files]);
+  const handleFiles = (event) => {
+    const fileList = Array.from(event.target.files).filter(file =>
+      file.name.toLowerCase().endsWith('.xml')
+    );
+    setArquivos(fileList);
   };
 
-  const handleSubmit = async () => {
-    if (xmls.length === 0) {
-      alert("Por favor, selecione arquivos XML antes de gerar o relatório.");
+  const handleFiltroChange = (e) => {
+    setFiltros({ ...filtros, [e.target.name]: e.target.value });
+  };
+
+  const enviarArquivos = async () => {
+    if (arquivos.length === 0) {
+      alert("Nenhum arquivo selecionado.");
       return;
     }
 
     const formData = new FormData();
-    xmls.forEach((file) => formData.append("xmls", file));
-    formData.append("modo_linha_individual", modoLinha);
+    arquivos.forEach((file) => {
+      formData.append('xmls', file);
+    });
 
-    try {
-      setCarregando(true);
-      setErro(null);
+    formData.append('modo_linha_individual', modoIndividual);
+    formData.append('dataInicio', filtros.dataInicio);
+    formData.append('dataFim', filtros.dataFim);
+    formData.append('cfop', filtros.cfop);
+    formData.append('tipoNF', filtros.tipoNF);
+    formData.append('ncm', filtros.ncm);
+    formData.append('codigoProduto', filtros.codigoProduto);
 
-      const res = await fetch("https://relatorio-nfe-backend.onrender.com/gerar-relatorio", {
-        method: "POST",
-        body: formData,
-        mode: "cors",
-        headers: {
-          Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        },
-      });
+    const response = await fetch('http://localhost:8000/gerar-relatorio', {
+      method: 'POST',
+      body: formData,
+    });
 
-      if (!res.ok) {
-        throw new Error("Erro ao gerar o relatório. Código: " + res.status);
-      }
-
-      const blob = await res.blob();
+    if (response.ok) {
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
-      a.download = "relatorio_nfe.xlsx";
-      document.body.appendChild(a);
+      a.download = 'relatorio_nfe.xlsx';
       a.click();
-      a.remove();
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
-        setErro("Erro de rede: não foi possível acessar o backend. Verifique a conexão ou se o backend está online.");
-      } else {
-        setErro("Erro ao gerar ou baixar o relatório: " + error.message);
-      }
-    } finally {
-      setCarregando(false);
+    } else {
+      alert("Erro ao gerar relatório.");
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-4">
-      <h1 className="text-xl font-bold">Relatório de NFe</h1>
-      <input type="file" multiple accept=".xml" onChange={handleUpload} />
-      <label>
-        <input type="checkbox" checked={modoLinha} onChange={(e) => setModoLinha(e.target.checked)} />
-        Linha por item/refNFe
-      </label>
-      <button onClick={handleSubmit} disabled={carregando}>
-        {carregando ? "Gerando..." : "Gerar Relatório"}
-      </button>
-      {erro && <p style={{ color: "red" }}>{erro}</p>}
+    <div style={{ padding: '20px' }}>
+      <h2>Selecionar pasta com XMLs</h2>
+
+      <input
+        type="file"
+        webkitdirectory="true"
+        directory="true"
+        multiple
+        onChange={handleFiles}
+      />
+
+      <div style={{ marginTop: '20px' }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={modoIndividual}
+            onChange={(e) => setModoIndividual(e.target.checked)}
+          />
+          &nbsp;Cada item em uma linha
+        </label>
+      </div>
+
+      <div style={{ marginTop: '20px' }}>
+        <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label><br />
+        <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label><br />
+        <label>CFOP: <input type="text" name="cfop" value={filtros.cfop} onChange={handleFiltroChange} /></label><br />
+        <label>Tipo NF: 
+          <select name="tipoNF" value={filtros.tipoNF} onChange={handleFiltroChange}>
+            <option value="">--</option>
+            <option value="Entrada">Entrada</option>
+            <option value="Saída">Saída</option>
+          </select>
+        </label><br />
+        <label>NCM: <input type="text" name="ncm" value={filtros.ncm} onChange={handleFiltroChange} /></label><br />
+        <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label><br />
+      </div>
+
+      <div style={{ marginTop: '20px' }}>
+        <button onClick={enviarArquivos}>Gerar Relatório</button>
+      </div>
+
+      <div style={{ marginTop: '10px' }}>
+        <strong>Total de arquivos XML selecionados:</strong> {arquivos.length}
+      </div>
     </div>
   );
 }
+
+export default UploadRelatorio;

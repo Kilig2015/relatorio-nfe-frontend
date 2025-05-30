@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+// ✅ Define a URL da API de forma dinâmica: usa VITE_API_URL se existir, senão localhost
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 function UploadRelatorio() {
   const [arquivos, setArquivos] = useState([]);
   const [modoIndividual, setModoIndividual] = useState(false);
@@ -44,7 +47,7 @@ function UploadRelatorio() {
 
     formData.append('modo_linha_individual', modoIndividual);
 
-    // Só adiciona filtros preenchidos
+    // ✅ Só adiciona filtros preenchidos
     Object.entries(filtros).forEach(([chave, valor]) => {
       if (valor) {
         formData.append(chave, valor);
@@ -52,7 +55,7 @@ function UploadRelatorio() {
     });
 
     try {
-      const response = await fetch('http://localhost:8000/gerar-relatorio', {
+      const response = await fetch(`${API_URL}/gerar-relatorio`, {
         method: 'POST',
         body: formData,
       });

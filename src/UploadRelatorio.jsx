@@ -43,19 +43,25 @@ function UploadRelatorio() {
     });
 
     formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', filtros.dataInicio);
-    formData.append('dataFim', filtros.dataFim);
-    formData.append('cfop', filtros.cfop);
-    formData.append('tipoNF', filtros.tipoNF);
-    formData.append('ncm', filtros.ncm);
-    formData.append('codigoProduto', filtros.codigoProduto);
 
-    const response = await fetch('http://localhost:8000/gerar-relatorio', {
-      method: 'POST',
-      body: formData,
+    // Só adiciona filtros preenchidos
+    Object.entries(filtros).forEach(([chave, valor]) => {
+      if (valor) {
+        formData.append(chave, valor);
+      }
     });
 
-    if (response.ok) {
+    try {
+      const response = await fetch('http://localhost:8000/gerar-relatorio', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Erro desconhecido.");
+      }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -63,8 +69,8 @@ function UploadRelatorio() {
       a.download = 'relatorio_nfe.xlsx';
       a.click();
       window.URL.revokeObjectURL(url);
-    } else {
-      alert("Erro ao gerar relatório.");
+    } catch (error) {
+      alert(`Erro ao gerar relatório: ${error.message}`);
     }
   };
 

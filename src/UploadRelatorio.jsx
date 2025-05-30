@@ -69,9 +69,7 @@ function UploadRelatorio() {
   };
 
   return (
-    <div style={{ padding: '20px', border: '2px solid red' }}>
-      <h1 style={{ color: 'blue' }}>⚙️ Teste de renderização: React está funcionando!</h1>
-
+    <div style={{ padding: '20px' }}>
       <h2>Selecionar pasta com XMLs</h2>
 
       <input

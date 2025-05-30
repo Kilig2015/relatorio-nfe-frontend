@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 function UploadRelatorio() {
   const [arquivos, setArquivos] = useState([]);
@@ -11,6 +11,14 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
+
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.setAttribute('webkitdirectory', '');
+    }
+  }, []);
 
   const handleFiles = (event) => {
     const fileList = Array.from(event.target.files).filter(file =>
@@ -66,9 +74,8 @@ function UploadRelatorio() {
 
       <input
         type="file"
-        webkitdirectory="true"
-        directory="true"
         multiple
+        ref={inputRef}
         onChange={handleFiles}
       />
 

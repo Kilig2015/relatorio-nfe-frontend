@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-// ✅ Define a URL da API de forma dinâmica: usa VITE_API_URL se existir, senão localhost
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function UploadRelatorio() {
@@ -47,7 +46,6 @@ function UploadRelatorio() {
 
     formData.append('modo_linha_individual', modoIndividual);
 
-    // ✅ Só adiciona filtros preenchidos
     Object.entries(filtros).forEach(([chave, valor]) => {
       if (valor) {
         formData.append(chave, valor);
@@ -61,8 +59,9 @@ function UploadRelatorio() {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Erro desconhecido.");
+        const errorData = await response.json().catch(() => null);
+        const mensagem = errorData?.detail || await response.text();
+        throw new Error(mensagem || "Erro desconhecido.");
       }
 
       const blob = await response.blob();

@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function UploadRelatorio() {
-  const [arquivos, setArquivos] = useState([]);
+  const inputRef = useRef(null);
   const [modoIndividual, setModoIndividual] = useState(false);
   const [filtros, setFiltros] = useState({
     dataInicio: '',
@@ -13,8 +13,7 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-
-  const inputRef = useRef(null);
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -22,20 +21,17 @@ function UploadRelatorio() {
     }
   }, []);
 
-  const handleFiles = (event) => {
-    const fileList = Array.from(event.target.files).filter(file =>
-      file.name.toLowerCase().endsWith('.xml')
-    );
-    setArquivos(fileList);
-  };
-
   const handleFiltroChange = (e) => {
     setFiltros({ ...filtros, [e.target.name]: e.target.value });
   };
 
-  const enviarArquivos = async () => {
+  const handleFiles = async (event) => {
+    const arquivos = Array.from(event.target.files).filter(file =>
+      file.name.toLowerCase().endsWith('.xml')
+    );
+
     if (arquivos.length === 0) {
-      alert("Nenhum arquivo selecionado.");
+      alert("Nenhum arquivo XML selecionado.");
       return;
     }
 
@@ -46,11 +42,13 @@ function UploadRelatorio() {
 
     formData.append('modo_linha_individual', modoIndividual);
 
-    Object.entries(filtros).forEach(([chave, valor]) => {
-      if (valor) {
-        formData.append(chave, valor);
+    Object.entries(filtros).forEach(([key, value]) => {
+      if (value) {
+        formData.append(key, value);
       }
     });
+
+    setEnviando(true);
 
     try {
       const response = await fetch(`${API_URL}/gerar-relatorio`, {
@@ -58,10 +56,16 @@ function UploadRelatorio() {
         body: formData,
       });
 
+      if (response.status === 400) {
+        const msg = await response.text();
+        alert("Nenhum dado encontrado após aplicar os filtros.");
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        const mensagem = errorData?.detail || await response.text();
-        throw new Error(mensagem || "Erro desconhecido.");
+        const msg = errorData?.detail || await response.text();
+        throw new Error(msg || "Erro desconhecido.");
       }
 
       const blob = await response.blob();
@@ -73,6 +77,8 @@ function UploadRelatorio() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       alert(`Erro ao gerar relatório: ${error.message}`);
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -85,6 +91,7 @@ function UploadRelatorio() {
         multiple
         ref={inputRef}
         onChange={handleFiles}
+        accept=".xml"
       />
 
       <div style={{ marginTop: '20px' }}>
@@ -114,11 +121,11 @@ function UploadRelatorio() {
       </div>
 
       <div style={{ marginTop: '20px' }}>
-        <button onClick={enviarArquivos}>Gerar Relatório</button>
-      </div>
-
-      <div style={{ marginTop: '10px' }}>
-        <strong>Total de arquivos XML selecionados:</strong> {arquivos.length}
+        {enviando ? (
+          <strong>Processando arquivos, por favor aguarde...</strong>
+        ) : (
+          <button onClick={() => inputRef.current?.click()}>Gerar Relatório</button>
+        )}
       </div>
     </div>
   );

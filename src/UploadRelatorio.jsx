@@ -48,13 +48,17 @@ function UploadRelatorio() {
       formData.append('xmls', file);
     });
 
+    const appendFiltro = (key, valor) => {
+      formData.append(key, valor && valor !== "string" ? valor : '');
+    };
+
     formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', filtros.dataInicio);
-    formData.append('dataFim', filtros.dataFim);
-    formData.append('cfop', filtros.cfop);
-    formData.append('tipoNF', filtros.tipoNF);
-    formData.append('ncm', filtros.ncm);
-    formData.append('codigoProduto', filtros.codigoProduto);
+    appendFiltro('dataInicio', filtros.dataInicio);
+    appendFiltro('dataFim', filtros.dataFim);
+    appendFiltro('cfop', filtros.cfop);
+    appendFiltro('tipoNF', filtros.tipoNF);
+    appendFiltro('ncm', filtros.ncm);
+    appendFiltro('codigoProduto', filtros.codigoProduto);
 
     try {
       const response = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {
@@ -64,7 +68,7 @@ function UploadRelatorio() {
 
       if (!response.ok) {
         const erro = await response.json();
-        alert("Erro ao gerar relatório: " + erro.detail);
+        alert("Erro ao gerar relatório: " + (erro.detail || "Desconhecido"));
         return;
       }
 

@@ -11,24 +11,11 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-  const [usandoZip, setUsandoZip] = useState(false);
   const [carregando, setCarregando] = useState(false);
+  const [linkRelatorio, setLinkRelatorio] = useState('');
 
-  const handleFiles = (event) => {
-    const files = Array.from(event.target.files);
-    const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
-    const isXml = files.every(file => file.name.toLowerCase().endsWith('.xml'));
-
-    if (isZip) {
-      setUsandoZip(true);
-      setArquivos(files);
-    } else if (isXml) {
-      setUsandoZip(false);
-      setArquivos(files);
-    } else {
-      alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
-      setArquivos([]);
-    }
+  const handleFiles = (e) => {
+    setArquivos(Array.from(e.target.files));
   };
 
   const handleFiltroChange = (e) => {
@@ -37,98 +24,72 @@ function UploadRelatorio() {
 
   const enviarArquivos = async () => {
     if (arquivos.length === 0) {
-      alert("Nenhum arquivo selecionado.");
+      alert("Selecione ao menos um arquivo XML ou ZIP.");
       return;
     }
 
     setCarregando(true);
     const formData = new FormData();
-
-    arquivos.forEach((file) => {
-      formData.append('xmls', file);
-    });
-
+    arquivos.forEach(file => formData.append('xmls', file));
     formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', filtros.dataInicio || '');
-    formData.append('dataFim', filtros.dataFim || '');
-    formData.append('cfop', filtros.cfop || '');
-    formData.append('tipoNF', filtros.tipoNF || '');
-    formData.append('ncm', filtros.ncm || '');
-    formData.append('codigoProduto', filtros.codigoProduto || '');
+    Object.entries(filtros).forEach(([chave, valor]) => formData.append(chave, valor));
 
     try {
-      const response = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {
+      const res = await fetch(import.meta.env.VITE_API_URL + "/gerar-relatorio", {
         method: 'POST',
-        body: formData,
+        body: formData
       });
 
-      if (!response.ok) {
-        const erro = await response.json();
-        alert("Erro ao gerar relatório: " + erro.detail);
-        return;
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setLinkRelatorio(import.meta.env.VITE_API_URL + data.url);
+      } else {
+        alert(data.detail || 'Erro ao gerar relatório.');
       }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'relatorio_nfe.xlsx';
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      alert("Erro de rede. Verifique sua conexão ou o backend.");
+    } catch {
+      alert('Erro de rede ou conexão com o servidor.');
     } finally {
       setCarregando(false);
     }
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h2>Upload de XMLs ou ZIP</h2>
-
+    <div style={{ padding: '20px' }}>
+      <h2>Upload de XML ou ZIP</h2>
       <input type="file" multiple onChange={handleFiles} />
+      <br />
 
-      {usandoZip && (
-        <div style={{ marginTop: '10px', color: 'green' }}>
-          Arquivo ZIP detectado — será processado automaticamente.
-        </div>
-      )}
+      <label>
+        <input type="checkbox" checked={modoIndividual} onChange={(e) => setModoIndividual(e.target.checked)} />
+        Cada item em uma linha
+      </label>
 
-      <div style={{ marginTop: '20px' }}>
-        <label>
-          <input
-            type="checkbox"
-            checked={modoIndividual}
-            onChange={(e) => setModoIndividual(e.target.checked)}
-          />
-          &nbsp;Cada item em uma linha
-        </label>
-      </div>
-
-      <div style={{ marginTop: '20px' }}>
-        <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label><br />
-        <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label><br />
-        <label>CFOP: <input type="text" name="cfop" value={filtros.cfop} onChange={handleFiltroChange} /></label><br />
+      <div>
+        <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label>
+        <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label>
+        <label>CFOP: <input type="text" name="cfop" value={filtros.cfop} onChange={handleFiltroChange} /></label>
         <label>Tipo NF:
           <select name="tipoNF" value={filtros.tipoNF} onChange={handleFiltroChange}>
             <option value="">--</option>
             <option value="Entrada">Entrada</option>
             <option value="Saída">Saída</option>
           </select>
-        </label><br />
-        <label>NCM: <input type="text" name="ncm" value={filtros.ncm} onChange={handleFiltroChange} /></label><br />
-        <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label><br />
+        </label>
+        <label>NCM: <input type="text" name="ncm" value={filtros.ncm} onChange={handleFiltroChange} /></label>
+        <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label>
       </div>
 
-      <div style={{ marginTop: '20px' }}>
-        <button onClick={enviarArquivos} disabled={carregando}>
-          {carregando ? 'Gerando...' : 'Gerar Relatório'}
-        </button>
-      </div>
+      <button onClick={enviarArquivos} disabled={carregando}>
+        {carregando ? "Gerando..." : "Gerar Relatório"}
+      </button>
 
-      <div style={{ marginTop: '10px' }}>
-        <strong>Total de arquivos selecionados:</strong> {arquivos.length}
-      </div>
+      {linkRelatorio && (
+        <div style={{ marginTop: '20px' }}>
+          <a href={linkRelatorio} download target="_blank" rel="noopener noreferrer">
+            Baixar Relatório
+          </a>
+        </div>
+      )}
     </div>
   );
 }

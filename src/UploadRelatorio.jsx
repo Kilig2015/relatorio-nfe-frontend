@@ -11,7 +11,6 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-  const [usandoZip, setUsandoZip] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
   const handleFiles = (event) => {
@@ -19,24 +18,16 @@ function UploadRelatorio() {
     const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
     const isXml = files.every(file => file.name.toLowerCase().endsWith('.xml'));
 
-    if (isZip) {
-      setUsandoZip(true);
-      setArquivos(files);
-    } else if (isXml) {
-      setUsandoZip(false);
+    if (isZip || isXml) {
       setArquivos(files);
     } else {
-      alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
+      alert("Selecione apenas arquivos XML ou um único ZIP com XMLs.");
       setArquivos([]);
     }
   };
 
   const handleFiltroChange = (e) => {
     setFiltros({ ...filtros, [e.target.name]: e.target.value });
-  };
-
-  const limparValor = (valor) => {
-    return valor && valor !== 'string' ? valor : '';
   };
 
   const enviarArquivos = async () => {
@@ -46,19 +37,15 @@ function UploadRelatorio() {
     }
 
     setCarregando(true);
-
     const formData = new FormData();
-    arquivos.forEach((file) => {
-      formData.append('xmls', file);
-    });
-
+    arquivos.forEach((file) => formData.append('xmls', file));
     formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', limparValor(filtros.dataInicio));
-    formData.append('dataFim', limparValor(filtros.dataFim));
-    formData.append('cfop', limparValor(filtros.cfop));
-    formData.append('tipoNF', limparValor(filtros.tipoNF));
-    formData.append('ncm', limparValor(filtros.ncm));
-    formData.append('codigoProduto', limparValor(filtros.codigoProduto));
+    formData.append('dataInicio', filtros.dataInicio);
+    formData.append('dataFim', filtros.dataFim);
+    formData.append('cfop', filtros.cfop);
+    formData.append('tipoNF', filtros.tipoNF);
+    formData.append('ncm', filtros.ncm);
+    formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
       const response = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {
@@ -73,14 +60,14 @@ function UploadRelatorio() {
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'relatorio_nfe.xlsx';
       a.click();
-      window.URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
     } catch (error) {
-      alert("Erro de rede. Verifique sua conexão ou o backend.");
+      alert("Erro de rede ou CORS. Verifique sua conexão ou backend.");
     } finally {
       setCarregando(false);
     }
@@ -89,14 +76,7 @@ function UploadRelatorio() {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Upload de XMLs ou ZIP</h2>
-
-      <input type="file" multiple onChange={handleFiles} />
-
-      {usandoZip && (
-        <div style={{ marginTop: '10px', color: 'green' }}>
-          Arquivo ZIP detectado — será extraído automaticamente.
-        </div>
-      )}
+      <input type="file" multiple onChange={handleFiles} webkitdirectory="" />
 
       <div style={{ marginTop: '20px' }}>
         <label>

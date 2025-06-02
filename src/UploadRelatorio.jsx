@@ -11,83 +11,84 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
+  const [linkDownload, setLinkDownload] = useState(null);
   const [carregando, setCarregando] = useState(false);
-  const [linkRelatorio, setLinkRelatorio] = useState('');
 
   const handleFiles = (e) => {
-    setArquivos(Array.from(e.target.files));
-  };
-
-  const handleFiltroChange = (e) => {
-    setFiltros({ ...filtros, [e.target.name]: e.target.value });
+    const files = Array.from(e.target.files);
+    const isZip = files.length === 1 && files[0].name.endsWith('.zip');
+    const isXml = files.every(f => f.name.endsWith('.xml'));
+    if (isZip || isXml) {
+      setArquivos(files);
+    } else {
+      alert("Selecione apenas arquivos .xml ou um arquivo .zip.");
+      setArquivos([]);
+    }
   };
 
   const enviarArquivos = async () => {
     if (arquivos.length === 0) {
-      alert("Selecione ao menos um arquivo XML ou ZIP.");
+      alert("Nenhum arquivo selecionado.");
       return;
     }
 
     setCarregando(true);
+    setLinkDownload(null);
+
     const formData = new FormData();
-    arquivos.forEach(file => formData.append('xmls', file));
+    arquivos.forEach(f => formData.append('xmls', f));
     formData.append('modo_linha_individual', modoIndividual);
-    Object.entries(filtros).forEach(([chave, valor]) => formData.append(chave, valor));
+    Object.entries(filtros).forEach(([k, v]) => formData.append(k, v));
 
     try {
-      const res = await fetch(import.meta.env.VITE_API_URL + "/gerar-relatorio", {
+      const res = await fetch("https://relatorio-nfe-backend.onrender.com/gerar-relatorio", {
         method: 'POST',
         body: formData
       });
 
-      const data = await res.json();
-      if (res.ok && data.url) {
-        setLinkRelatorio(import.meta.env.VITE_API_URL + data.url);
-      } else {
-        alert(data.detail || 'Erro ao gerar relatório.');
+      if (!res.ok) {
+        const err = await res.json();
+        alert("Erro ao gerar relatório: " + err.detail);
+        return;
       }
-    } catch {
-      alert('Erro de rede ou conexão com o servidor.');
+
+      const json = await res.json();
+      setLinkDownload(json.link);
+    } catch (err) {
+      alert("Erro de rede.");
     } finally {
       setCarregando(false);
     }
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Upload de XML ou ZIP</h2>
+    <div style={{ padding: 20 }}>
+      <h2>Gerar Relatório NFe</h2>
       <input type="file" multiple onChange={handleFiles} />
       <br />
-
       <label>
-        <input type="checkbox" checked={modoIndividual} onChange={(e) => setModoIndividual(e.target.checked)} />
-        Cada item em uma linha
+        <input type="checkbox" checked={modoIndividual} onChange={e => setModoIndividual(e.target.checked)} />
+        &nbsp;Cada item em uma linha
       </label>
-
-      <div>
-        <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label>
-        <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label>
-        <label>CFOP: <input type="text" name="cfop" value={filtros.cfop} onChange={handleFiltroChange} /></label>
-        <label>Tipo NF:
-          <select name="tipoNF" value={filtros.tipoNF} onChange={handleFiltroChange}>
-            <option value="">--</option>
-            <option value="Entrada">Entrada</option>
-            <option value="Saída">Saída</option>
-          </select>
-        </label>
-        <label>NCM: <input type="text" name="ncm" value={filtros.ncm} onChange={handleFiltroChange} /></label>
-        <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label>
-      </div>
-
+      <br />
+      {["dataInicio", "dataFim", "cfop", "tipoNF", "ncm", "codigoProduto"].map((campo, idx) => (
+        <div key={idx}>
+          <label>{campo}: </label>
+          <input
+            type={campo.includes("data") ? "date" : "text"}
+            name={campo}
+            value={filtros[campo]}
+            onChange={e => setFiltros({ ...filtros, [campo]: e.target.value })}
+          />
+        </div>
+      ))}
+      <br />
       <button onClick={enviarArquivos} disabled={carregando}>
-        {carregando ? "Gerando..." : "Gerar Relatório"}
+        {carregando ? "Processando..." : "Gerar Relatório"}
       </button>
-
-      {linkRelatorio && (
-        <div style={{ marginTop: '20px' }}>
-          <a href={linkRelatorio} download target="_blank" rel="noopener noreferrer">
-            Baixar Relatório
-          </a>
+      {linkDownload && (
+        <div style={{ marginTop: 10 }}>
+          ✅ <a href={linkDownload} target="_blank" rel="noopener noreferrer">Clique para baixar</a>
         </div>
       )}
     </div>

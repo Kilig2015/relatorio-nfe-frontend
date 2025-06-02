@@ -1,9 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import React, { useState } from 'react';
 
 function UploadRelatorio() {
-  const inputRef = useRef(null);
+  const [arquivos, setArquivos] = useState([]);
   const [modoIndividual, setModoIndividual] = useState(false);
   const [filtros, setFiltros] = useState({
     dataInicio: '',
@@ -13,27 +11,37 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-  const [enviando, setEnviando] = useState(false);
+  const [usandoZip, setUsandoZip] = useState(false);
+  const [carregando, setCarregando] = useState(false);
 
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.setAttribute('webkitdirectory', '');
+  const handleFiles = (event) => {
+    const files = Array.from(event.target.files);
+    const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
+    const isXml = files.every(file => file.name.toLowerCase().endsWith('.xml'));
+
+    if (isZip) {
+      setUsandoZip(true);
+      setArquivos(files);
+    } else if (isXml) {
+      setUsandoZip(false);
+      setArquivos(files);
+    } else {
+      alert("Selecione apenas arquivos .xml ou um .zip contendo XMLs.");
+      setArquivos([]);
     }
-  }, []);
+  };
 
   const handleFiltroChange = (e) => {
     setFiltros({ ...filtros, [e.target.name]: e.target.value });
   };
 
-  const handleFiles = async (event) => {
-    const arquivos = Array.from(event.target.files).filter(file =>
-      file.name.toLowerCase().endsWith('.xml')
-    );
-
+  const enviarArquivos = async () => {
     if (arquivos.length === 0) {
-      alert("Nenhum arquivo XML selecionado.");
+      alert("Nenhum arquivo selecionado.");
       return;
     }
+
+    setCarregando(true);
 
     const formData = new FormData();
     arquivos.forEach((file) => {
@@ -41,31 +49,23 @@ function UploadRelatorio() {
     });
 
     formData.append('modo_linha_individual', modoIndividual);
-
-    Object.entries(filtros).forEach(([key, value]) => {
-      if (value) {
-        formData.append(key, value);
-      }
-    });
-
-    setEnviando(true);
+    formData.append('dataInicio', filtros.dataInicio);
+    formData.append('dataFim', filtros.dataFim);
+    formData.append('cfop', filtros.cfop);
+    formData.append('tipoNF', filtros.tipoNF);
+    formData.append('ncm', filtros.ncm);
+    formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
-      const response = await fetch(`${API_URL}/gerar-relatorio`, {
+      const response = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {
         method: 'POST',
         body: formData,
       });
 
-      if (response.status === 400) {
-        const msg = await response.text();
-        alert("Nenhum dado encontrado após aplicar os filtros.");
-        return;
-      }
-
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const msg = errorData?.detail || await response.text();
-        throw new Error(msg || "Erro desconhecido.");
+        const err = await response.json();
+        alert("Erro ao gerar relatório: " + err.detail);
+        return;
       }
 
       const blob = await response.blob();
@@ -76,23 +76,23 @@ function UploadRelatorio() {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert(`Erro ao gerar relatório: ${error.message}`);
+      alert("Falha na conexão com o servidor.");
     } finally {
-      setEnviando(false);
+      setCarregando(false);
     }
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Selecionar pasta com XMLs</h2>
+    <div style={{ padding: '20px', fontFamily: 'Arial' }}>
+      <h2>Selecionar arquivos XML ou ZIP</h2>
 
-      <input
-        type="file"
-        multiple
-        ref={inputRef}
-        onChange={handleFiles}
-        accept=".xml"
-      />
+      <input type="file" multiple onChange={handleFiles} />
+
+      {usandoZip && (
+        <div style={{ marginTop: '10px', color: 'green' }}>
+          Arquivo ZIP detectado. Os XMLs serão extraídos automaticamente.
+        </div>
+      )}
 
       <div style={{ marginTop: '20px' }}>
         <label>
@@ -109,7 +109,7 @@ function UploadRelatorio() {
         <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label><br />
         <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label><br />
         <label>CFOP: <input type="text" name="cfop" value={filtros.cfop} onChange={handleFiltroChange} /></label><br />
-        <label>Tipo NF: 
+        <label>Tipo NF:
           <select name="tipoNF" value={filtros.tipoNF} onChange={handleFiltroChange}>
             <option value="">--</option>
             <option value="Entrada">Entrada</option>
@@ -121,11 +121,13 @@ function UploadRelatorio() {
       </div>
 
       <div style={{ marginTop: '20px' }}>
-        {enviando ? (
-          <strong>Processando arquivos, por favor aguarde...</strong>
-        ) : (
-          <button onClick={() => inputRef.current?.click()}>Gerar Relatório</button>
-        )}
+        <button onClick={enviarArquivos} disabled={carregando}>
+          {carregando ? 'Gerando...' : 'Gerar Relatório'}
+        </button>
+      </div>
+
+      <div style={{ marginTop: '10px' }}>
+        <strong>Total de arquivos selecionados:</strong> {arquivos.length}
       </div>
     </div>
   );

@@ -26,7 +26,7 @@ function UploadRelatorio() {
       setUsandoZip(false);
       setArquivos(files);
     } else {
-      alert("Selecione apenas arquivos .xml ou um .zip contendo XMLs.");
+      alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
       setArquivos([]);
     }
   };
@@ -63,8 +63,8 @@ function UploadRelatorio() {
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        alert("Erro ao gerar relatório: " + err.detail);
+        const erro = await response.json();
+        alert("Erro ao gerar relatório: " + erro.detail);
         return;
       }
 
@@ -76,21 +76,21 @@ function UploadRelatorio() {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert("Falha na conexão com o servidor.");
+      alert("Erro de rede. Verifique sua conexão ou o backend.");
     } finally {
       setCarregando(false);
     }
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial' }}>
-      <h2>Selecionar arquivos XML ou ZIP</h2>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+      <h2>Upload de XMLs ou ZIP</h2>
 
       <input type="file" multiple onChange={handleFiles} />
 
       {usandoZip && (
         <div style={{ marginTop: '10px', color: 'green' }}>
-          Arquivo ZIP detectado. Os XMLs serão extraídos automaticamente.
+          Arquivo ZIP detectado — será extraído automaticamente.
         </div>
       )}
 

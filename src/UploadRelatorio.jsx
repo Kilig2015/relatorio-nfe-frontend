@@ -49,12 +49,12 @@ function UploadRelatorio() {
     });
 
     formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', filtros.dataInicio || '');
-    formData.append('dataFim', filtros.dataFim || '');
-    formData.append('cfop', filtros.cfop || '');
-    formData.append('tipoNF', filtros.tipoNF || '');
-    formData.append('ncm', filtros.ncm || '');
-    formData.append('codigoProduto', filtros.codigoProduto || '');
+    formData.append('dataInicio', filtros.dataInicio);
+    formData.append('dataFim', filtros.dataFim);
+    formData.append('cfop', filtros.cfop);
+    formData.append('tipoNF', filtros.tipoNF);
+    formData.append('ncm', filtros.ncm);
+    formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
       const response = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {

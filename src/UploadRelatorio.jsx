@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'https://relatorio-nfe-backend.onrender.com';
+
 function UploadRelatorio() {
   const [arquivos, setArquivos] = useState([]);
   const [modoIndividual, setModoIndividual] = useState(false);
@@ -11,19 +13,15 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-  const [usandoZip, setUsandoZip] = useState(false);
   const [carregando, setCarregando] = useState(false);
+  const [progresso, setProgresso] = useState('');
 
   const handleFiles = (event) => {
     const files = Array.from(event.target.files);
     const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
     const isXml = files.every(file => file.name.toLowerCase().endsWith('.xml'));
 
-    if (isZip) {
-      setUsandoZip(true);
-      setArquivos(files);
-    } else if (isXml) {
-      setUsandoZip(false);
+    if (isZip || isXml) {
       setArquivos(files);
     } else {
       alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
@@ -35,6 +33,29 @@ function UploadRelatorio() {
     setFiltros({ ...filtros, [e.target.name]: e.target.value });
   };
 
+  const verificarStatus = async (taskId) => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`${API_URL}/status/${taskId}`);
+        const data = await response.json();
+
+        if (data.status === 'pronto') {
+          clearInterval(interval);
+          setProgresso('Relatório pronto! Baixando...');
+          const a = document.createElement('a');
+          a.href = `${API_URL}/download/${taskId}`;
+          a.download = 'relatorio_nfe.xlsx';
+          a.click();
+        } else {
+          setProgresso('Processando... aguarde');
+        }
+      } catch {
+        clearInterval(interval);
+        setProgresso('Erro ao consultar status. Tente novamente mais tarde.');
+      }
+    }, 5000);
+  };
+
   const enviarArquivos = async () => {
     if (arquivos.length === 0) {
       alert("Nenhum arquivo selecionado.");
@@ -42,37 +63,35 @@ function UploadRelatorio() {
     }
 
     setCarregando(true);
-    const formData = new FormData();
-    arquivos.forEach((file) => {
-      formData.append('xmls', file);
-    });
+    setProgresso('Enviando arquivos...');
 
-    for (const chave in filtros) {
-      formData.append(chave, filtros[chave]);
-    }
+    const formData = new FormData();
+    arquivos.forEach(file => formData.append('xmls', file));
     formData.append('modo_linha_individual', modoIndividual);
+    formData.append('dataInicio', filtros.dataInicio);
+    formData.append('dataFim', filtros.dataFim);
+    formData.append('cfop', filtros.cfop);
+    formData.append('tipoNF', filtros.tipoNF);
+    formData.append('ncm', filtros.ncm);
+    formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
-      const response = await fetch('https://relatorio-nfe-backend.onrender.com/gerar-relatorio', {
+      const response = await fetch(`${API_URL}/gerar-relatorio`, {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) {
-        const erro = await response.json();
-        alert("Erro ao gerar relatório: " + erro.detail);
-        return;
+      const json = await response.json();
+      if (response.ok && json.task_id) {
+        setProgresso('Processamento iniciado...');
+        verificarStatus(json.task_id);
+      } else {
+        setProgresso('');
+        alert("Erro ao iniciar processamento: " + (json.detail || 'Desconhecido'));
       }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'relatorio_nfe.xlsx';
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      alert("Erro de rede. Verifique sua conexão ou o backend.");
+    } catch (err) {
+      setProgresso('');
+      alert("Erro de rede. Verifique sua conexão ou tente novamente.");
     } finally {
       setCarregando(false);
     }
@@ -83,12 +102,6 @@ function UploadRelatorio() {
       <h2>Upload de XMLs ou ZIP</h2>
 
       <input type="file" multiple onChange={handleFiles} />
-
-      {usandoZip && (
-        <div style={{ marginTop: '10px', color: 'green' }}>
-          Arquivo ZIP detectado — será extraído automaticamente.
-        </div>
-      )}
 
       <div style={{ marginTop: '20px' }}>
         <label>
@@ -118,8 +131,12 @@ function UploadRelatorio() {
 
       <div style={{ marginTop: '20px' }}>
         <button onClick={enviarArquivos} disabled={carregando}>
-          {carregando ? 'Gerando...' : 'Gerar Relatório'}
+          {carregando ? 'Enviando...' : 'Gerar Relatório'}
         </button>
+      </div>
+
+      <div style={{ marginTop: '10px', color: 'blue' }}>
+        {progresso}
       </div>
 
       <div style={{ marginTop: '10px' }}>

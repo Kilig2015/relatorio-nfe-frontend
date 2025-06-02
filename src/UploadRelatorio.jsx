@@ -11,23 +11,14 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-  const [usandoZip, setUsandoZip] = useState(false);
   const [carregando, setCarregando] = useState(false);
-  const [taskId, setTaskId] = useState(null);
-  const [status, setStatus] = useState(null);
-
-  const API_URL = import.meta.env.VITE_API_URL || "https://relatorio-nfe-backend.onrender.com";
 
   const handleFiles = (event) => {
     const files = Array.from(event.target.files);
     const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
     const isXml = files.every(file => file.name.toLowerCase().endsWith('.xml'));
 
-    if (isZip) {
-      setUsandoZip(true);
-      setArquivos(files);
-    } else if (isXml) {
-      setUsandoZip(false);
+    if (isZip || isXml) {
       setArquivos(files);
     } else {
       alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
@@ -46,64 +37,42 @@ function UploadRelatorio() {
     }
 
     setCarregando(true);
-    setStatus(null);
 
     const formData = new FormData();
     arquivos.forEach((file) => {
       formData.append('xmls', file);
     });
 
+    Object.entries(filtros).forEach(([key, value]) => {
+      formData.append(key, value || '');
+    });
+
     formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', filtros.dataInicio);
-    formData.append('dataFim', filtros.dataFim);
-    formData.append('cfop', filtros.cfop);
-    formData.append('tipoNF', filtros.tipoNF);
-    formData.append('ncm', filtros.ncm);
-    formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
-      const response = await fetch(`${API_URL}/gerar-relatorio`, {
+      const response = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {
         method: 'POST',
         body: formData,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setTaskId(data.task_id);
-        verificarStatus(data.task_id);
-      } else {
-        alert(data.detail || "Erro ao enviar os arquivos.");
+      if (!response.ok) {
+        const erro = await response.json();
+        alert("Erro ao gerar relatório: " + erro.detail);
+        return;
       }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'relatorio_nfe.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert("Erro de rede. Verifique sua conexão.");
+      alert("Erro de rede. Verifique sua conexão ou o backend.");
+    } finally {
+      setCarregando(false);
     }
-  };
-
-  const verificarStatus = async (taskId) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`${API_URL}/status/${taskId}`);
-        const data = await response.json();
-
-        if (data.status === "pronto") {
-          clearInterval(interval);
-          setStatus("pronto");
-          window.open(`${API_URL}/download/${taskId}`, '_blank');
-          setCarregando(false);
-        } else if (data.status === "processando") {
-          setStatus("Processando...");
-        } else {
-          setStatus("Erro ao consultar status.");
-          clearInterval(interval);
-          setCarregando(false);
-        }
-      } catch {
-        setStatus("Erro ao consultar status.");
-        clearInterval(interval);
-        setCarregando(false);
-      }
-    }, 3000);
   };
 
   return (
@@ -111,12 +80,6 @@ function UploadRelatorio() {
       <h2>Upload de XMLs ou ZIP</h2>
 
       <input type="file" multiple onChange={handleFiles} />
-
-      {usandoZip && (
-        <div style={{ marginTop: '10px', color: 'green' }}>
-          Arquivo ZIP detectado — será extraído automaticamente.
-        </div>
-      )}
 
       <div style={{ marginTop: '20px' }}>
         <label>
@@ -153,12 +116,6 @@ function UploadRelatorio() {
       <div style={{ marginTop: '10px' }}>
         <strong>Total de arquivos selecionados:</strong> {arquivos.length}
       </div>
-
-      {status && (
-        <div style={{ marginTop: '20px', color: status === 'pronto' ? 'green' : 'orange' }}>
-          {status === 'pronto' ? 'Relatório gerado com sucesso!' : status}
-        </div>
-      )}
     </div>
   );
 }

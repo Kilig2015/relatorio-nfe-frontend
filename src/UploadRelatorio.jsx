@@ -42,22 +42,18 @@ function UploadRelatorio() {
     }
 
     setCarregando(true);
-
     const formData = new FormData();
     arquivos.forEach((file) => {
       formData.append('xmls', file);
     });
 
+    for (const chave in filtros) {
+      formData.append(chave, filtros[chave]);
+    }
     formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', filtros.dataInicio || '');
-    formData.append('dataFim', filtros.dataFim || '');
-    formData.append('cfop', filtros.cfop || '');
-    formData.append('tipoNF', filtros.tipoNF || '');
-    formData.append('ncm', filtros.ncm || '');
-    formData.append('codigoProduto', filtros.codigoProduto || '');
 
     try {
-      const response = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {
+      const response = await fetch('https://relatorio-nfe-backend.onrender.com/gerar-relatorio', {
         method: 'POST',
         body: formData,
       });
@@ -83,10 +79,17 @@ function UploadRelatorio() {
   };
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Upload de XMLs ou ZIP</h2>
+
       <input type="file" multiple onChange={handleFiles} />
-      {usandoZip && <p style={{ color: 'green' }}>Arquivo ZIP detectado.</p>}
+
+      {usandoZip && (
+        <div style={{ marginTop: '10px', color: 'green' }}>
+          Arquivo ZIP detectado — será extraído automaticamente.
+        </div>
+      )}
+
       <div style={{ marginTop: '20px' }}>
         <label>
           <input
@@ -97,6 +100,7 @@ function UploadRelatorio() {
           &nbsp;Cada item em uma linha
         </label>
       </div>
+
       <div style={{ marginTop: '20px' }}>
         <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label><br />
         <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label><br />
@@ -111,11 +115,13 @@ function UploadRelatorio() {
         <label>NCM: <input type="text" name="ncm" value={filtros.ncm} onChange={handleFiltroChange} /></label><br />
         <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label><br />
       </div>
+
       <div style={{ marginTop: '20px' }}>
         <button onClick={enviarArquivos} disabled={carregando}>
           {carregando ? 'Gerando...' : 'Gerar Relatório'}
         </button>
       </div>
+
       <div style={{ marginTop: '10px' }}>
         <strong>Total de arquivos selecionados:</strong> {arquivos.length}
       </div>

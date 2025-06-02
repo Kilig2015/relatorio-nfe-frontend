@@ -12,13 +12,18 @@ function UploadRelatorio() {
     codigoProduto: '',
   });
   const [carregando, setCarregando] = useState(false);
+  const [usandoZip, setUsandoZip] = useState(false);
 
   const handleFiles = (event) => {
     const files = Array.from(event.target.files);
     const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
     const isXml = files.every(file => file.name.toLowerCase().endsWith('.xml'));
 
-    if (isZip || isXml) {
+    if (isZip) {
+      setUsandoZip(true);
+      setArquivos(files);
+    } else if (isXml) {
+      setUsandoZip(false);
       setArquivos(files);
     } else {
       alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
@@ -43,21 +48,24 @@ function UploadRelatorio() {
       formData.append('xmls', file);
     });
 
-    Object.entries(filtros).forEach(([key, value]) => {
-      formData.append(key, value || '');
-    });
-
+    // Campos do formulário (todos opcionais)
     formData.append('modo_linha_individual', modoIndividual);
+    formData.append('dataInicio', filtros.dataInicio || '');
+    formData.append('dataFim', filtros.dataFim || '');
+    formData.append('cfop', filtros.cfop || '');
+    formData.append('tipoNF', filtros.tipoNF || '');
+    formData.append('ncm', filtros.ncm || '');
+    formData.append('codigoProduto', filtros.codigoProduto || '');
 
     try {
-      const response = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {
+      const response = await fetch('https://relatorio-nfe-backend.onrender.com/gerar-relatorio', {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
-        const erro = await response.json();
-        alert("Erro ao gerar relatório: " + erro.detail);
+        const error = await response.json();
+        alert("Erro ao gerar relatório: " + error.detail);
         return;
       }
 
@@ -69,7 +77,7 @@ function UploadRelatorio() {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert("Erro de rede. Verifique sua conexão ou o backend.");
+      alert("Erro de rede. Verifique sua conexão ou se o backend está online.");
     } finally {
       setCarregando(false);
     }
@@ -80,6 +88,12 @@ function UploadRelatorio() {
       <h2>Upload de XMLs ou ZIP</h2>
 
       <input type="file" multiple onChange={handleFiles} />
+
+      {usandoZip && (
+        <div style={{ marginTop: '10px', color: 'green' }}>
+          Arquivo ZIP detectado — será extraído automaticamente.
+        </div>
+      )}
 
       <div style={{ marginTop: '20px' }}>
         <label>

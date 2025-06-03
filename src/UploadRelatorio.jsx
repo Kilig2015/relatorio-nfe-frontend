@@ -26,7 +26,7 @@ function UploadRelatorio() {
       setUsandoZip(false);
       setArquivos(files);
     } else {
-      alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
+      alert("Envie apenas arquivos XML ou um único .zip.");
       setArquivos([]);
     }
   };
@@ -42,20 +42,10 @@ function UploadRelatorio() {
     }
 
     setCarregando(true);
-
     const formData = new FormData();
-    arquivos.forEach((file) => {
-      formData.append('xmls', file);
-    });
-
-    // Campos do formulário (todos opcionais)
+    arquivos.forEach(file => formData.append('xmls', file));
     formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', filtros.dataInicio || '');
-    formData.append('dataFim', filtros.dataFim || '');
-    formData.append('cfop', filtros.cfop || '');
-    formData.append('tipoNF', filtros.tipoNF || '');
-    formData.append('ncm', filtros.ncm || '');
-    formData.append('codigoProduto', filtros.codigoProduto || '');
+    Object.entries(filtros).forEach(([k, v]) => formData.append(k, v));
 
     try {
       const response = await fetch('https://relatorio-nfe-backend.onrender.com/gerar-relatorio', {
@@ -64,49 +54,48 @@ function UploadRelatorio() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        alert("Erro ao gerar relatório: " + error.detail);
+        const erro = await response.json();
+        alert("Erro ao gerar relatório: " + erro.detail);
         return;
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'relatorio_nfe.xlsx';
       a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      alert("Erro de rede. Verifique sua conexão ou se o backend está online.");
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Erro de rede. Verifique conexão ou backend.");
     } finally {
       setCarregando(false);
     }
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h2>Upload de XMLs ou ZIP</h2>
-
+    <div style={{ padding: 20 }}>
+      <h2>Gerador de Relatório NFe</h2>
       <input type="file" multiple onChange={handleFiles} />
 
       {usandoZip && (
-        <div style={{ marginTop: '10px', color: 'green' }}>
-          Arquivo ZIP detectado — será extraído automaticamente.
+        <div style={{ color: 'green', marginTop: 10 }}>
+          ZIP detectado: será processado automaticamente.
         </div>
       )}
 
-      <div style={{ marginTop: '20px' }}>
+      <div style={{ marginTop: 10 }}>
         <label>
           <input
             type="checkbox"
             checked={modoIndividual}
             onChange={(e) => setModoIndividual(e.target.checked)}
           />
-          &nbsp;Cada item em uma linha
+          Cada item em uma linha
         </label>
       </div>
 
-      <div style={{ marginTop: '20px' }}>
+      <div style={{ marginTop: 10 }}>
         <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label><br />
         <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label><br />
         <label>CFOP: <input type="text" name="cfop" value={filtros.cfop} onChange={handleFiltroChange} /></label><br />
@@ -118,17 +107,13 @@ function UploadRelatorio() {
           </select>
         </label><br />
         <label>NCM: <input type="text" name="ncm" value={filtros.ncm} onChange={handleFiltroChange} /></label><br />
-        <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label><br />
+        <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label>
       </div>
 
-      <div style={{ marginTop: '20px' }}>
+      <div style={{ marginTop: 20 }}>
         <button onClick={enviarArquivos} disabled={carregando}>
-          {carregando ? 'Gerando...' : 'Gerar Relatório'}
+          {carregando ? "Gerando..." : "Gerar Relatório"}
         </button>
-      </div>
-
-      <div style={{ marginTop: '10px' }}>
-        <strong>Total de arquivos selecionados:</strong> {arquivos.length}
       </div>
     </div>
   );

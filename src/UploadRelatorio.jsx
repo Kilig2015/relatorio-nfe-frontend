@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://relatorio-nfe-backend.onrender.com';
-
 function UploadRelatorio() {
   const [arquivos, setArquivos] = useState([]);
   const [modoIndividual, setModoIndividual] = useState(true);
@@ -13,26 +11,11 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-  const [usandoZip, setUsandoZip] = useState(false);
   const [status, setStatus] = useState('');
-  const [downloadLink, setDownloadLink] = useState('');
 
-  const handleFiles = (event) => {
-    const files = Array.from(event.target.files);
-    const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
-    const isXml = files.every(file => file.name.toLowerCase().endsWith('.xml'));
-
-    if (isZip) {
-      setUsandoZip(true);
-      setArquivos(files);
-    } else if (isXml) {
-      setUsandoZip(false);
-      setArquivos(files);
-    } else {
-      alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
-      setArquivos([]);
-    }
-    setDownloadLink('');
+  const handleFiles = (e) => {
+    const files = Array.from(e.target.files);
+    setArquivos(files);
   };
 
   const handleFiltroChange = (e) => {
@@ -40,126 +23,74 @@ function UploadRelatorio() {
   };
 
   const verificarStatus = async (id) => {
-    try {
-      const interval = setInterval(async () => {
-        const response = await fetch(`${API_URL}/status/${id}`);
-        const data = await response.json();
+    let tentativas = 0;
+    const intervalo = setInterval(async () => {
+      tentativas++;
+      const res = await fetch(`https://relatorio-nfe-backend.onrender.com/status/${id}`);
+      const data = await res.json();
 
-        if (data.status === 'pronto') {
-          clearInterval(interval);
-          setStatus('Relatório pronto para download.');
-          setDownloadLink(`${API_URL}${data.url}`);
-        } else if (data.status === 'inexistente') {
-          clearInterval(interval);
-          setStatus('Erro: ID não encontrado.');
-        } else {
-          setStatus('Processando...');
-        }
-      }, 3000);
-    } catch (err) {
-      setStatus('Erro ao consultar status. Tente novamente mais tarde.');
-    }
+      if (data.status === "pronto") {
+        clearInterval(intervalo);
+        setStatus("Relatório pronto. Baixando...");
+        window.location.href = data.url;
+      } else if (tentativas > 100) {
+        clearInterval(intervalo);
+        setStatus("Tempo excedido. Tente novamente mais tarde.");
+      }
+    }, 5000);
   };
 
   const enviarArquivos = async () => {
-    if (arquivos.length === 0) {
-      alert("Nenhum arquivo selecionado.");
+    if (!arquivos.length) {
+      alert("Selecione arquivos.");
       return;
     }
 
-    setStatus('Processando...');
-    setDownloadLink('');
-
+    setStatus("Processando...");
     const formData = new FormData();
-    arquivos.forEach((file) => {
-      formData.append('xmls', file);
-    });
-
-    formData.append('modo_linha_individual', modoIndividual);
-    formData.append('dataInicio', filtros.dataInicio);
-    formData.append('dataFim', filtros.dataFim);
-    formData.append('cfop', filtros.cfop);
-    formData.append('tipoNF', filtros.tipoNF);
-    formData.append('ncm', filtros.ncm);
-    formData.append('codigoProduto', filtros.codigoProduto);
+    arquivos.forEach(file => formData.append("xmls", file));
+    formData.append("modo_linha_individual", modoIndividual);
+    Object.entries(filtros).forEach(([k, v]) => formData.append(k, v));
 
     try {
-      const response = await fetch(`${API_URL}/gerar-relatorio`, {
-        method: 'POST',
-        body: formData,
+      const res = await fetch("https://relatorio-nfe-backend.onrender.com/gerar-relatorio", {
+        method: "POST",
+        body: formData
       });
-
-      const data = await response.json();
-
-      if (response.ok && data.id) {
+      const data = await res.json();
+      if (res.ok && data.id) {
         verificarStatus(data.id);
       } else {
-        setStatus('Erro ao gerar relatório.');
+        setStatus("Erro ao iniciar geração.");
       }
-    } catch (error) {
-      setStatus('Erro de rede. Verifique sua conexão ou o backend.');
+    } catch (err) {
+      setStatus("Erro de rede.");
     }
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ padding: 20 }}>
       <h2>Upload de XMLs ou ZIP</h2>
-
       <input type="file" multiple onChange={handleFiles} />
-
-      {usandoZip && (
-        <div style={{ marginTop: '10px', color: 'green' }}>
-          ZIP detectado: será processado automaticamente.
-        </div>
-      )}
-
-      <div style={{ marginTop: '20px' }}>
-        <label>
-          <input
-            type="checkbox"
-            checked={modoIndividual}
-            onChange={(e) => setModoIndividual(e.target.checked)}
-          />
-          &nbsp;Cada item em uma linha
-        </label>
-      </div>
-
-      <div style={{ marginTop: '20px' }}>
-        <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label><br />
-        <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label><br />
-        <label>CFOP: <input type="text" name="cfop" value={filtros.cfop} onChange={handleFiltroChange} /></label><br />
-        <label>Tipo NF:
-          <select name="tipoNF" value={filtros.tipoNF} onChange={handleFiltroChange}>
-            <option value="">--</option>
-            <option value="Entrada">Entrada</option>
-            <option value="Saída">Saída</option>
-          </select>
-        </label><br />
-        <label>NCM: <input type="text" name="ncm" value={filtros.ncm} onChange={handleFiltroChange} /></label><br />
-        <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label><br />
-      </div>
-
-      <div style={{ marginTop: '20px' }}>
-        <button onClick={enviarArquivos}>
-          Gerar Relatório
-        </button>
-      </div>
-
-      <div style={{ marginTop: '10px', fontWeight: 'bold' }}>
-        Status: {status}
-      </div>
-
-      {downloadLink && (
-        <div style={{ marginTop: '10px' }}>
-          <a href={downloadLink} download>
-            Clique aqui para baixar o relatório
-          </a>
-        </div>
-      )}
-
-      <div style={{ marginTop: '10px' }}>
-        <strong>Total de arquivos selecionados:</strong> {arquivos.length}
-      </div>
+      <br /><br />
+      <label>
+        <input type="checkbox" checked={modoIndividual} onChange={(e) => setModoIndividual(e.target.checked)} />
+        Cada item em uma linha
+      </label>
+      <br />
+      <input name="dataInicio" type="date" onChange={handleFiltroChange} />
+      <input name="dataFim" type="date" onChange={handleFiltroChange} /><br />
+      <input name="cfop" placeholder="CFOP" onChange={handleFiltroChange} />
+      <select name="tipoNF" onChange={handleFiltroChange}>
+        <option value="">Tipo NF</option>
+        <option value="Entrada">Entrada</option>
+        <option value="Saída">Saída</option>
+      </select><br />
+      <input name="ncm" placeholder="NCM" onChange={handleFiltroChange} />
+      <input name="codigoProduto" placeholder="Código Produto" onChange={handleFiltroChange} /><br /><br />
+      <button onClick={enviarArquivos}>Gerar Relatório</button>
+      <p><strong>Status:</strong> {status}</p>
+      <p><strong>Total de arquivos selecionados:</strong> {arquivos.length}</p>
     </div>
   );
 }

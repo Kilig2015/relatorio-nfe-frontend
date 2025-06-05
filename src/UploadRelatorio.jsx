@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'https://relatorio-nfe-backend.onrender.com';
+
 function UploadRelatorio() {
   const [arquivos, setArquivos] = useState([]);
   const [modoIndividual, setModoIndividual] = useState(true);
@@ -11,27 +13,52 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-  const [mensagem, setMensagem] = useState('');
   const [usandoZip, setUsandoZip] = useState(false);
+  const [status, setStatus] = useState('');
+  const [downloadLink, setDownloadLink] = useState('');
 
   const handleFiles = (event) => {
     const files = Array.from(event.target.files);
-    const zip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
-    const xmls = files.every(file => file.name.toLowerCase().endsWith('.xml'));
-    if (zip) {
+    const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
+    const isXml = files.every(file => file.name.toLowerCase().endsWith('.xml'));
+
+    if (isZip) {
       setUsandoZip(true);
       setArquivos(files);
-    } else if (xmls) {
+    } else if (isXml) {
       setUsandoZip(false);
       setArquivos(files);
     } else {
-      alert("Envie apenas arquivos XML ou um .ZIP com XMLs.");
+      alert("Selecione apenas arquivos .xml ou um único .zip contendo XMLs.");
       setArquivos([]);
     }
+    setDownloadLink('');
   };
 
   const handleFiltroChange = (e) => {
     setFiltros({ ...filtros, [e.target.name]: e.target.value });
+  };
+
+  const verificarStatus = async (id) => {
+    try {
+      const interval = setInterval(async () => {
+        const response = await fetch(`${API_URL}/status/${id}`);
+        const data = await response.json();
+
+        if (data.status === 'pronto') {
+          clearInterval(interval);
+          setStatus('Relatório pronto para download.');
+          setDownloadLink(`${API_URL}${data.url}`);
+        } else if (data.status === 'inexistente') {
+          clearInterval(interval);
+          setStatus('Erro: ID não encontrado.');
+        } else {
+          setStatus('Processando...');
+        }
+      }, 3000);
+    } catch (err) {
+      setStatus('Erro ao consultar status. Tente novamente mais tarde.');
+    }
   };
 
   const enviarArquivos = async () => {
@@ -40,78 +67,98 @@ function UploadRelatorio() {
       return;
     }
 
-    setMensagem("Status: Processando...");
+    setStatus('Processando...');
+    setDownloadLink('');
 
     const formData = new FormData();
-    arquivos.forEach(file => {
+    arquivos.forEach((file) => {
       formData.append('xmls', file);
     });
 
-    for (const key in filtros) {
-      formData.append(key, filtros[key]);
-    }
     formData.append('modo_linha_individual', modoIndividual);
+    formData.append('dataInicio', filtros.dataInicio);
+    formData.append('dataFim', filtros.dataFim);
+    formData.append('cfop', filtros.cfop);
+    formData.append('tipoNF', filtros.tipoNF);
+    formData.append('ncm', filtros.ncm);
+    formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
-      const res = await fetch(import.meta.env.VITE_API_URL + '/gerar-relatorio', {
+      const response = await fetch(`${API_URL}/gerar-relatorio`, {
         method: 'POST',
         body: formData,
       });
 
-      if (!res.ok) {
-        const erro = await res.json();
-        setMensagem("Erro: " + erro.detail);
-        return;
-      }
+      const data = await response.json();
 
-      const json = await res.json();
-      setMensagem("Relatório gerado! Clique abaixo para baixar.");
-      const link = document.createElement('a');
-      link.href = import.meta.env.VITE_API_URL + json.url;
-      link.download = "relatorio_nfe.xlsx";
-      link.textContent = "Clique aqui para baixar o relatório";
-      document.getElementById("link").innerHTML = '';
-      document.getElementById("link").appendChild(link);
-    } catch (err) {
-      setMensagem("Erro ao gerar relatório.");
+      if (response.ok && data.id) {
+        verificarStatus(data.id);
+      } else {
+        setStatus('Erro ao gerar relatório.');
+      }
+    } catch (error) {
+      setStatus('Erro de rede. Verifique sua conexão ou o backend.');
     }
   };
 
   return (
-    <div style={{ padding: 20, fontFamily: 'Arial' }}>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h2>Upload de XMLs ou ZIP</h2>
 
       <input type="file" multiple onChange={handleFiles} />
-      {usandoZip && <p style={{ color: 'green' }}>ZIP detectado: será processado automaticamente.</p>}
 
-      <label>
-        <input
-          type="checkbox"
-          checked={modoIndividual}
-          onChange={e => setModoIndividual(e.target.checked)}
-        />
-        &nbsp;Cada item em uma linha
-      </label>
+      {usandoZip && (
+        <div style={{ marginTop: '10px', color: 'green' }}>
+          ZIP detectado: será processado automaticamente.
+        </div>
+      )}
 
-      <div style={{ marginTop: 10 }}>
-        <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /><br />
-        <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /><br />
-        <input type="text" name="cfop" placeholder="CFOP" value={filtros.cfop} onChange={handleFiltroChange} /><br />
-        <select name="tipoNF" value={filtros.tipoNF} onChange={handleFiltroChange}>
-          <option value="">Tipo NF</option>
-          <option value="Entrada">Entrada</option>
-          <option value="Saída">Saída</option>
-        </select><br />
-        <input type="text" name="ncm" placeholder="NCM" value={filtros.ncm} onChange={handleFiltroChange} /><br />
-        <input type="text" name="codigoProduto" placeholder="Código Produto" value={filtros.codigoProduto} onChange={handleFiltroChange} />
+      <div style={{ marginTop: '20px' }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={modoIndividual}
+            onChange={(e) => setModoIndividual(e.target.checked)}
+          />
+          &nbsp;Cada item em uma linha
+        </label>
       </div>
 
-      <button style={{ marginTop: 20 }} onClick={enviarArquivos}>Gerar Relatório</button>
+      <div style={{ marginTop: '20px' }}>
+        <label>Data Início: <input type="date" name="dataInicio" value={filtros.dataInicio} onChange={handleFiltroChange} /></label><br />
+        <label>Data Fim: <input type="date" name="dataFim" value={filtros.dataFim} onChange={handleFiltroChange} /></label><br />
+        <label>CFOP: <input type="text" name="cfop" value={filtros.cfop} onChange={handleFiltroChange} /></label><br />
+        <label>Tipo NF:
+          <select name="tipoNF" value={filtros.tipoNF} onChange={handleFiltroChange}>
+            <option value="">--</option>
+            <option value="Entrada">Entrada</option>
+            <option value="Saída">Saída</option>
+          </select>
+        </label><br />
+        <label>NCM: <input type="text" name="ncm" value={filtros.ncm} onChange={handleFiltroChange} /></label><br />
+        <label>Código Produto: <input type="text" name="codigoProduto" value={filtros.codigoProduto} onChange={handleFiltroChange} /></label><br />
+      </div>
 
-      <div style={{ marginTop: 20 }}>
-        <strong>{mensagem}</strong>
-        <div id="link" style={{ marginTop: 10 }}></div>
-        <div><strong>Total de arquivos selecionados:</strong> {arquivos.length}</div>
+      <div style={{ marginTop: '20px' }}>
+        <button onClick={enviarArquivos}>
+          Gerar Relatório
+        </button>
+      </div>
+
+      <div style={{ marginTop: '10px', fontWeight: 'bold' }}>
+        Status: {status}
+      </div>
+
+      {downloadLink && (
+        <div style={{ marginTop: '10px' }}>
+          <a href={downloadLink} download>
+            Clique aqui para baixar o relatório
+          </a>
+        </div>
+      )}
+
+      <div style={{ marginTop: '10px' }}>
+        <strong>Total de arquivos selecionados:</strong> {arquivos.length}
       </div>
     </div>
   );

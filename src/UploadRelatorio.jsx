@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 
+const API_URL = 'https://relatorio-nfe-backend.onrender.com';
+
 function UploadRelatorio() {
   const [arquivos, setArquivos] = useState([]);
-  const [modoIndividual, setModoIndividual] = useState(true);
+  const [modoIndividual, setModoIndividual] = useState(false);
   const [filtros, setFiltros] = useState({
     dataInicio: '',
     dataFim: '',
@@ -11,9 +13,9 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
+  const [status, setStatus] = useState(null);
   const [usandoZip, setUsandoZip] = useState(false);
-  const [status, setStatus] = useState('');
-  const [linkDownload, setLinkDownload] = useState('');
+  const [carregando, setCarregando] = useState(false);
 
   const handleFiles = (event) => {
     const files = Array.from(event.target.files);
@@ -42,13 +44,11 @@ function UploadRelatorio() {
       return;
     }
 
-    setStatus("Processando...");
-    setLinkDownload("");
+    setCarregando(true);
+    setStatus("Enviando arquivos...");
 
     const formData = new FormData();
-    arquivos.forEach((file) => {
-      formData.append('xmls', file);
-    });
+    arquivos.forEach((file) => formData.append('xmls', file));
 
     formData.append('modo_linha_individual', modoIndividual);
     formData.append('dataInicio', filtros.dataInicio);
@@ -59,41 +59,61 @@ function UploadRelatorio() {
     formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
-      const response = await fetch("https://relatorio-nfe-backend.onrender.com/gerar-relatorio", {
+      const res = await fetch(`${API_URL}/gerar-relatorio`, {
         method: 'POST',
-        body: formData
+        body: formData,
       });
 
-      if (!response.ok) {
-        const erro = await response.json();
-        setStatus("Erro ao gerar relatório.");
-        alert("Erro: " + (erro.detail || "Erro desconhecido."));
+      const json = await res.json();
+      if (!res.ok) {
+        alert("Erro: " + (json.detail || "Erro desconhecido"));
+        setCarregando(false);
         return;
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      setLinkDownload(url);
-      setStatus("Relatório gerado com sucesso.");
-    } catch (error) {
-      console.error("Erro de rede:", error);
-      setStatus("Erro de rede. Verifique sua conexão ou o backend.");
+      const { id } = json;
+      setStatus("Processando...");
+
+      // Polling
+      const interval = setInterval(async () => {
+        const resp = await fetch(`${API_URL}/status/${id}`);
+        const data = await resp.json();
+
+        if (data.status === 'concluido') {
+          clearInterval(interval);
+          setStatus("Concluído. Baixando arquivo...");
+
+          const link = document.createElement('a');
+          link.href = `${API_URL}/download/relatorio_${id}.xlsx`;
+          link.download = 'relatorio_nfe.xlsx';
+          link.click();
+
+          setCarregando(false);
+          setStatus("Relatório baixado.");
+        }
+
+        if (data.status === 'erro') {
+          clearInterval(interval);
+          setCarregando(false);
+          alert("Erro ao gerar relatório: " + data.erro);
+          setStatus("Erro no processamento.");
+        }
+      }, 3000);
+
+    } catch (err) {
+      alert("Erro ao enviar arquivos. Verifique a conexão ou o backend.");
+      setCarregando(false);
     }
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ padding: '20px', fontFamily: 'Arial' }}>
       <h2>Upload de XMLs ou ZIP</h2>
 
       <input type="file" multiple onChange={handleFiles} />
+      {usandoZip && <p style={{ color: 'green' }}>Arquivo ZIP detectado — será processado.</p>}
 
-      {usandoZip && (
-        <div style={{ marginTop: '10px', color: 'green' }}>
-          Arquivo ZIP detectado — será extraído automaticamente.
-        </div>
-      )}
-
-      <div style={{ marginTop: '20px' }}>
+      <div style={{ marginTop: '15px' }}>
         <label>
           <input
             type="checkbox"
@@ -120,16 +140,20 @@ function UploadRelatorio() {
       </div>
 
       <div style={{ marginTop: '20px' }}>
-        <button onClick={enviarArquivos}>Gerar Relatório</button>
+        <button onClick={enviarArquivos} disabled={carregando}>
+          {carregando ? 'Processando...' : 'Gerar Relatório'}
+        </button>
       </div>
 
-      <div style={{ marginTop: '20px' }}>
-        <strong>Status:</strong> {status}<br />
-        {linkDownload && (
-          <a href={linkDownload} download="relatorio_nfe.xlsx">Clique aqui para baixar o relatório</a>
-        )}
-        <div><strong>Total de arquivos selecionados:</strong> {arquivos.length}</div>
+      <div style={{ marginTop: '10px' }}>
+        <strong>Total de arquivos selecionados:</strong> {arquivos.length}
       </div>
+
+      {status && (
+        <div style={{ marginTop: '15px', fontWeight: 'bold', color: '#005' }}>
+          {status}
+        </div>
+      )}
     </div>
   );
 }

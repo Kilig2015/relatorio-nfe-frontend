@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 function UploadRelatorio() {
   const [arquivos, setArquivos] = useState([]);
-  const [modoIndividual, setModoIndividual] = useState(false);
+  const [modoIndividual, setModoIndividual] = useState(true);
   const [filtros, setFiltros] = useState({
     dataInicio: '',
     dataFim: '',
@@ -12,10 +12,8 @@ function UploadRelatorio() {
     codigoProduto: '',
   });
   const [usandoZip, setUsandoZip] = useState(false);
-  const [carregando, setCarregando] = useState(false);
-  const [mensagem, setMensagem] = useState('');
-
-  const API_URL = import.meta.env.VITE_API_URL || 'https://relatorio-nfe-backend.onrender.com';
+  const [status, setStatus] = useState('');
+  const [linkDownload, setLinkDownload] = useState('');
 
   const handleFiles = (event) => {
     const files = Array.from(event.target.files);
@@ -38,61 +36,48 @@ function UploadRelatorio() {
     setFiltros({ ...filtros, [e.target.name]: e.target.value });
   };
 
-  const consultarStatus = async (taskId) => {
-    try {
-      for (let i = 0; i < 300; i++) {
-        const res = await fetch(`${API_URL}/status/${taskId}`);
-        const json = await res.json();
-        if (json.status === 'pronto') {
-          return json.url;
-        }
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-      throw new Error('Tempo de espera excedido.');
-    } catch (err) {
-      throw new Error("Erro ao consultar status. Tente novamente mais tarde.");
-    }
-  };
-
   const enviarArquivos = async () => {
     if (arquivos.length === 0) {
       alert("Nenhum arquivo selecionado.");
       return;
     }
 
-    setCarregando(true);
-    setMensagem("Enviando arquivos...");
+    setStatus("Processando...");
+    setLinkDownload("");
 
     const formData = new FormData();
-    arquivos.forEach(file => formData.append('xmls', file));
+    arquivos.forEach((file) => {
+      formData.append('xmls', file);
+    });
 
     formData.append('modo_linha_individual', modoIndividual);
-    Object.entries(filtros).forEach(([chave, valor]) => formData.append(chave, valor));
+    formData.append('dataInicio', filtros.dataInicio);
+    formData.append('dataFim', filtros.dataFim);
+    formData.append('cfop', filtros.cfop);
+    formData.append('tipoNF', filtros.tipoNF);
+    formData.append('ncm', filtros.ncm);
+    formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
-      const response = await fetch(`${API_URL}/gerar-relatorio`, {
+      const response = await fetch("https://relatorio-nfe-backend.onrender.com/gerar-relatorio", {
         method: 'POST',
-        body: formData,
+        body: formData
       });
 
       if (!response.ok) {
         const erro = await response.json();
-        throw new Error(erro.detail || "Erro ao iniciar geração.");
+        setStatus("Erro ao gerar relatório.");
+        alert("Erro: " + (erro.detail || "Erro desconhecido."));
+        return;
       }
 
-      const { id } = await response.json();
-      setMensagem("Relatório em processamento...");
-
-      const urlRelatorio = await consultarStatus(id);
-      const link = document.createElement('a');
-      link.href = `${API_URL}${urlRelatorio}`;
-      link.download = 'relatorio_nfe.xlsx';
-      link.click();
-      setMensagem("Relatório pronto!");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      setLinkDownload(url);
+      setStatus("Relatório gerado com sucesso.");
     } catch (error) {
-      setMensagem(error.message);
-    } finally {
-      setCarregando(false);
+      console.error("Erro de rede:", error);
+      setStatus("Erro de rede. Verifique sua conexão ou o backend.");
     }
   };
 
@@ -135,20 +120,16 @@ function UploadRelatorio() {
       </div>
 
       <div style={{ marginTop: '20px' }}>
-        <button onClick={enviarArquivos} disabled={carregando}>
-          {carregando ? 'Gerando...' : 'Gerar Relatório'}
-        </button>
+        <button onClick={enviarArquivos}>Gerar Relatório</button>
       </div>
 
-      <div style={{ marginTop: '10px' }}>
-        <strong>Total de arquivos selecionados:</strong> {arquivos.length}
+      <div style={{ marginTop: '20px' }}>
+        <strong>Status:</strong> {status}<br />
+        {linkDownload && (
+          <a href={linkDownload} download="relatorio_nfe.xlsx">Clique aqui para baixar o relatório</a>
+        )}
+        <div><strong>Total de arquivos selecionados:</strong> {arquivos.length}</div>
       </div>
-
-      {mensagem && (
-        <div style={{ marginTop: '20px', color: carregando ? 'blue' : 'green' }}>
-          {mensagem}
-        </div>
-      )}
     </div>
   );
 }

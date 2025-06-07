@@ -13,9 +13,10 @@ function UploadRelatorio() {
     ncm: '',
     codigoProduto: '',
   });
-  const [status, setStatus] = useState(null);
   const [usandoZip, setUsandoZip] = useState(false);
   const [carregando, setCarregando] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [downloadUrl, setDownloadUrl] = useState(null);
 
   const handleFiles = (event) => {
     const files = Array.from(event.target.files);
@@ -38,6 +39,29 @@ function UploadRelatorio() {
     setFiltros({ ...filtros, [e.target.name]: e.target.value });
   };
 
+  const consultarStatus = async (jobId) => {
+    try {
+      const interval = setInterval(async () => {
+        const resp = await fetch(`${API_URL}/status/${jobId}`);
+        const data = await resp.json();
+        if (data.status === 'concluido') {
+          clearInterval(interval);
+          setStatus('concluido');
+          setDownloadUrl(API_URL + data.url);
+          setCarregando(false);
+        } else if (data.status === 'nao_encontrado') {
+          clearInterval(interval);
+          setStatus('erro');
+          setCarregando(false);
+          alert("Erro ao consultar status. Tente novamente mais tarde.");
+        }
+      }, 5000);
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao consultar status.");
+    }
+  };
+
   const enviarArquivos = async () => {
     if (arquivos.length === 0) {
       alert("Nenhum arquivo selecionado.");
@@ -45,10 +69,13 @@ function UploadRelatorio() {
     }
 
     setCarregando(true);
-    setStatus("Enviando arquivos...");
+    setStatus("processando");
+    setDownloadUrl(null);
 
     const formData = new FormData();
-    arquivos.forEach((file) => formData.append('xmls', file));
+    arquivos.forEach((file) => {
+      formData.append('xmls', file);
+    });
 
     formData.append('modo_linha_individual', modoIndividual);
     formData.append('dataInicio', filtros.dataInicio);
@@ -59,49 +86,24 @@ function UploadRelatorio() {
     formData.append('codigoProduto', filtros.codigoProduto);
 
     try {
-      const res = await fetch(`${API_URL}/gerar-relatorio`, {
+      const response = await fetch(`${API_URL}/gerar-relatorio`, {
         method: 'POST',
         body: formData,
       });
 
-      const json = await res.json();
-      if (!res.ok) {
-        alert("Erro: " + (json.detail || "Erro desconhecido"));
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert("Erro ao iniciar geração: " + (data.detail || "desconhecido"));
         setCarregando(false);
         return;
       }
 
-      const { id } = json;
-      setStatus("Processando...");
+      consultarStatus(data.id);
 
-      // Polling
-      const interval = setInterval(async () => {
-        const resp = await fetch(`${API_URL}/status/${id}`);
-        const data = await resp.json();
-
-        if (data.status === 'concluido') {
-          clearInterval(interval);
-          setStatus("Concluído. Baixando arquivo...");
-
-          const link = document.createElement('a');
-          link.href = `${API_URL}/download/relatorio_${id}.xlsx`;
-          link.download = 'relatorio_nfe.xlsx';
-          link.click();
-
-          setCarregando(false);
-          setStatus("Relatório baixado.");
-        }
-
-        if (data.status === 'erro') {
-          clearInterval(interval);
-          setCarregando(false);
-          alert("Erro ao gerar relatório: " + data.erro);
-          setStatus("Erro no processamento.");
-        }
-      }, 3000);
-
-    } catch (err) {
-      alert("Erro ao enviar arquivos. Verifique a conexão ou o backend.");
+    } catch (error) {
+      console.error(error);
+      alert("Erro de rede. Verifique sua conexão ou o backend.");
       setCarregando(false);
     }
   };
@@ -111,9 +113,14 @@ function UploadRelatorio() {
       <h2>Upload de XMLs ou ZIP</h2>
 
       <input type="file" multiple onChange={handleFiles} />
-      {usandoZip && <p style={{ color: 'green' }}>Arquivo ZIP detectado — será processado.</p>}
 
-      <div style={{ marginTop: '15px' }}>
+      {usandoZip && (
+        <div style={{ marginTop: '10px', color: 'green' }}>
+          Arquivo ZIP detectado — será extraído automaticamente.
+        </div>
+      )}
+
+      <div style={{ marginTop: '20px' }}>
         <label>
           <input
             type="checkbox"
@@ -141,7 +148,7 @@ function UploadRelatorio() {
 
       <div style={{ marginTop: '20px' }}>
         <button onClick={enviarArquivos} disabled={carregando}>
-          {carregando ? 'Processando...' : 'Gerar Relatório'}
+          {carregando ? 'Gerando...' : 'Gerar Relatório'}
         </button>
       </div>
 
@@ -149,9 +156,17 @@ function UploadRelatorio() {
         <strong>Total de arquivos selecionados:</strong> {arquivos.length}
       </div>
 
-      {status && (
-        <div style={{ marginTop: '15px', fontWeight: 'bold', color: '#005' }}>
-          {status}
+      {status === 'processando' && (
+        <div style={{ marginTop: '20px', color: 'blue' }}>
+          Processando... Aguarde.
+        </div>
+      )}
+
+      {status === 'concluido' && downloadUrl && (
+        <div style={{ marginTop: '20px', color: 'green' }}>
+          <a href={downloadUrl} download target="_blank" rel="noopener noreferrer">
+            Clique aqui para baixar o relatório
+          </a>
         </div>
       )}
     </div>
